@@ -4,27 +4,34 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#f7f7f8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="styles.css">
   <title>叠茵庭搬屋 Checklist</title>
-  <style>
-    :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans HK",sans-serif;color:#171717;background:#f5f5f7}
-    *{box-sizing:border-box} body{margin:0;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
-    header{position:sticky;top:0;background:rgba(245,245,247,.92);backdrop-filter:blur(14px);padding:18px 16px 12px;border-bottom:1px solid #ddd;z-index:3}
-    h1{font-size:22px;margin:0 0 5px}.sub{font-size:13px;color:#666}.wrap{max-width:720px;margin:auto;padding:14px}
-    .progress{background:#fff;border-radius:16px;padding:14px;margin-bottom:14px;box-shadow:0 1px 5px #0000000d}
-    .bar{height:9px;background:#e8e8ea;border-radius:99px;overflow:hidden;margin-top:9px}.fill{height:100%;background:#171717;width:0}
-    .tabs{display:flex;gap:8px;overflow:auto;padding-bottom:10px}.tab{border:0;border-radius:99px;padding:9px 12px;background:#e7e7e9;white-space:nowrap}.tab.active{background:#171717;color:#fff}
-    section{margin:9px 0 18px} h2{font-size:17px;margin:10px 3px}.card{background:#fff;border-radius:15px;padding:13px;margin:9px 0;box-shadow:0 1px 5px #0000000d}
-    .row{display:flex;gap:11px;align-items:flex-start}.check{width:24px;height:24px;accent-color:#171717;flex:none}.title{font-weight:650}.meta{font-size:12px;color:#777;margin-top:4px;line-height:1.45}.note{width:100%;margin-top:9px;border:1px solid #ddd;border-radius:10px;padding:9px;font:inherit;background:#fafafa}
-    .done .title{text-decoration:line-through;color:#888}.badge{display:inline-block;font-size:11px;padding:3px 7px;border-radius:99px;background:#eee;margin-right:5px}.urgent{background:#fff0d7}.optional{background:#eef1f5}
-    button.reset{width:100%;padding:12px;border:1px solid #ccc;border-radius:12px;background:#fff;color:#555;margin:10px 0 30px}
-  </style>
 </head>
 <body>
-<header><h1>叠茵庭搬屋 Checklist</h1><div class="sub">租住・6座　｜　搬入：2026年8月22日</div></header>
+<header>
+  <div class="headrow">
+    <div>
+      <h1>叠茵庭搬屋 Checklist</h1>
+      <div class="sub">租住・6座 ｜ 搬入：2026年8月22日</div>
+    </div>
+    <button id="settingsBtn" class="iconbtn" aria-label="同步設定">⚙︎</button>
+  </div>
+  <div class="syncrow">
+    <span id="syncBadge" class="sync local">● 本機模式</span>
+    <span id="lastSync" class="lastsync"></span>
+  </div>
+</header>
+
 <main class="wrap">
-  <div class="progress"><strong id="ptext">0 / 0 已完成</strong><div class="bar"><div class="fill" id="fill"></div></div></div>
+  <div class="progress">
+    <div class="progressTop"><strong id="ptext">0 / 0 已完成</strong><span id="who"></span></div>
+    <div class="bar"><div class="fill" id="fill"></div></div>
+  </div>
+
   <div class="tabs">
     <button class="tab active" data-filter="all">全部</button>
     <button class="tab" data-filter="now">現在處理</button>
@@ -32,64 +39,52 @@
     <button class="tab" data-filter="after">搬入後</button>
     <button class="tab" data-filter="optional">視乎需要</button>
   </div>
+
   <div id="list"></div>
-  <button class="reset" id="reset">清除所有完成紀錄</button>
+  <button class="reset" id="reset">清除本機完成紀錄</button>
+  <p class="privacy">測試版：請勿在備註欄輸入身份證號碼、密碼、銀行資料等敏感資料。</p>
 </main>
+
+<dialog id="settingsDialog">
+  <form method="dialog" class="dialogbox" id="settingsForm">
+    <div class="dialogHead">
+      <div><h2>家人即時同步</h2><p>Firebase Firestore 測試設定</p></div>
+      <button class="closebtn" value="cancel" aria-label="關閉">×</button>
+    </div>
+
+    <label>你的名稱
+      <input id="displayName" autocomplete="name" placeholder="例如：KL">
+    </label>
+
+    <label>家庭共用碼
+      <div class="inline"><input id="familyCode" autocapitalize="characters" placeholder="12位英數字"><button type="button" id="generateCode">產生</button></div>
+    </label>
+
+    <label>Firebase Web App 設定
+      <textarea id="firebaseConfig" rows="7" placeholder='貼上 Firebase 提供的 firebaseConfig，例如：\nconst firebaseConfig = {\n  apiKey: "...",\n  authDomain: "...",\n  projectId: "...",\n  appId: "..."\n};'></textarea>
+    </label>
+
+    <details>
+      <summary>家人快速加入</summary>
+      <p class="hint">設定完成後可複製「家庭設定碼」畀家人；家人只需貼入同一個 PWA。</p>
+      <textarea id="familyPack" rows="3" placeholder="家庭設定碼會顯示在這裡"></textarea>
+      <div class="btnrow">
+        <button type="button" id="copyPack">複製家庭設定碼</button>
+        <button type="button" id="importPack">匯入家庭設定碼</button>
+      </div>
+    </details>
+
+    <div id="settingsMsg" class="msg"></div>
+    <div class="btnrow end">
+      <button type="button" id="disconnectBtn" class="secondary">只用本機</button>
+      <button type="button" id="saveSettings" class="primary">儲存並連線</button>
+    </div>
+  </form>
+</dialog>
+
+<script type="module" src="app.js"></script>
 <script>
-const items=[
-["電力｜中電","now","需要","網上開戶／轉名；安排新地址生效日。"],
-["煤氣｜香港中華煤氣","now","需要","網上開新戶口；如需要接駁，預約技術員。"],
-["食水｜水務署","now","需要","申請承接用水帳戶；保存承接日水錶讀數。"],
-["管理處｜搬屋申請","now","優先","確認搬屋時段、升降機安排及搬屋按金。"],
-["管理處｜住戶登記","now","需要","準備租約及管理處要求的住戶資料。"],
-["家居寬頻 / Wi-Fi","now","需要","比較可用網絡及預約安裝日期。"],
-["確認租約／屋苑寵物規則","now","優先","確認兩隻貓相關租約及管理規則。"],
-["香港郵政｜郵件轉遞","now","建議","舊址郵件暫時轉寄新址。"],
-["電錶讀數及相片","day","需要","收樓／搬入當日影低錶號及讀數。"],
-["煤氣錶讀數及相片","day","需要","影低錶號及讀數。"],
-["水錶讀數及相片","day","需要","影低錶號及讀數。"],
-["全屋狀況拍照／影片","day","優先","未搬入傢俬前記錄牆身、地板、門窗、廚廁及已有損壞。"],
-["點算鎖匙／信箱匙／住戶卡","day","需要","記錄實際收到數量。"],
-["測試冷氣／熱水爐／煮食爐","day","需要","確認業主提供設備運作正常。"],
-["測試雪櫃／洗衣機等業主電器","day","需要","如租約包含家電，搬入時逐件測試。"],
-["銀行／信用卡地址","after","需要","搬入後更新通訊地址。"],
-["保險地址","after","視乎需要","有相關保單才處理。"],
-["強積金 MPF 地址","after","視乎需要","按所用受託人更新資料。"],
-["手機／電訊商登記地址","after","建議","搬入後更新。"],
-["政府部門地址紀錄","after","視乎需要","按持有的政府服務／牌照更新。"],
-["運輸署地址","after","視乎需要","如持駕駛執照／登記車輛，記得更新。"],
-["選民登記地址","after","視乎需要","需要時更新。"],
-["收費電視 / Now TV","optional","可選","唔使用可跳過。"],
-["停車場／車位","optional","可選","有需要才申請。"],
-["家居／租客保險","optional","可選","非必要，可按需要考慮。"],
-["管理費","optional","查租約","一般按租約由業主或租客負責。"],
-["差餉／地租","optional","通常業主","租客一般毋須轉名，按租約確認。"]
-];
-let filter="all";
-const state=JSON.parse(localStorage.getItem("moveChecklist")||"{}");
-function render(){
- const box=document.getElementById("list"); box.innerHTML="";
- const groups={now:"現在處理",day:"搬屋當日",after:"搬入後",optional:"視乎需要／通常不用"};
- for(const [key,label] of Object.entries(groups)){
-   if(filter!=="all" && filter!==key) continue;
-   const sec=document.createElement("section"); sec.innerHTML=`<h2>${label}</h2>`;
-   items.forEach((it,i)=>{
-     if(it[1]!==key)return;
-     const d=document.createElement("div"); d.className="card "+(state[i]?.done?"done":"");
-     const bclass=(it[2]==="優先"?"urgent":(it[2].includes("視乎")||it[2]==="可選"||it[2]==="查租約"||it[2]==="通常業主"?"optional":""));
-     d.innerHTML=`<div class="row"><input class="check" type="checkbox" ${state[i]?.done?"checked":""}><div style="flex:1"><div class="title">${it[0]}</div><div class="meta"><span class="badge ${bclass}">${it[2]}</span>${it[3]}</div><input class="note" placeholder="備註／申請編號／預約時間…" value="${(state[i]?.note||"").replaceAll('"','&quot;')}"></div></div>`;
-     d.querySelector(".check").onchange=e=>{state[i]={...(state[i]||{}),done:e.target.checked};save();render()};
-     d.querySelector(".note").oninput=e=>{state[i]={...(state[i]||{}),note:e.target.value};save();update()};
-     sec.appendChild(d);
-   }); box.appendChild(sec);
- }
- update();
-}
-function save(){localStorage.setItem("moveChecklist",JSON.stringify(state))}
-function update(){const n=items.filter((_,i)=>state[i]?.done).length;document.getElementById("ptext").textContent=`${n} / ${items.length} 已完成`;document.getElementById("fill").style.width=(n/items.length*100)+"%"}
-document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");filter=b.dataset.filter;render()});
-document.getElementById("reset").onclick=()=>{if(confirm("確定清除所有完成紀錄及備註？")){localStorage.removeItem("moveChecklist");location.reload()}};
-if("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");
-render();
+if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js')); }
 </script>
-</body></html>
+</body>
+</html>
