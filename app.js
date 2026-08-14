@@ -122,7 +122,7 @@ function render(){
       const stamp=st.updatedBy?`最後更新：${esc(st.updatedBy)}${st.updatedAtMs?'・'+fmtTime(st.updatedAtMs):''}`:'';
       const isLandlord=it.id==='landlord_deposit';
       const noteHtml=isLandlord
-        ? `<div class="splitNotes"><label class="noteField"><span>業主</span><textarea class="note" data-note-field="ownerNote" rows="1" placeholder="業主相關備註…">${esc(st.ownerNote ?? st.note ?? '')}</textarea></label><label class="noteField"><span>2按1上</span><textarea class="note" data-note-field="depositNote" rows="1" placeholder="付款／收據／日期…">${esc(st.depositNote||'')}</textarea></label></div>`
+        ? `<div class="splitNotes"><label class="noteField"><textarea class="note" data-note-field="ownerNote" rows="1" placeholder="業主，例如：1上(8/10 $13000)✅">${esc(st.ownerNote ?? st.note ?? '')}</textarea></label><label class="noteField"><textarea class="note" data-note-field="depositNote" rows="1" placeholder="2按1上，例如：2按(8/21 $26000)">${esc(st.depositNote||'')}</textarea></label></div>`
         : `<textarea class="note" data-note-field="note" rows="1" placeholder="備註／申請編號／預約時間…">${esc(st.note||'')}</textarea>`;
       d.innerHTML=`<div class="row"><button class="dragHandle" type="button" aria-label="拖移 ${esc(it.title)}">☰</button><input class="check" type="checkbox" ${st.done?'checked':''}><div class="cardBody"><div class="title">${esc(it.title)}</div><div class="meta"><span class="badge ${badgeClass(it.tag)}">${esc(it.tag)}</span>${esc(it.desc)}</div><div class="stamp">${stamp}</div>${noteHtml}</div></div>`;
       d.querySelector('.check').addEventListener('change',e=>updateItem(it.id,{done:e.target.checked}));
