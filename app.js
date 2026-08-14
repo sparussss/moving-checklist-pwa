@@ -13,7 +13,7 @@ const items=[
 {id:'table_chairs',title:'枱凳',group:'now',tag:'傢俬',desc:'確認購買／送貨安排、尺寸及客飯廳最終擺位。'},
 {id:'whirlpool_washer',title:'Whirlpool 洗衣機',group:'now',tag:'家電',desc:'確認尺寸、送貨及安裝安排。'},
 {id:'cheung_yick',title:'祥益地產',group:'now',tag:'聯絡',desc:'交樓、鎖匙、文件或其他相關事項可記錄在備註。'},
-{id:'landlord_deposit',title:'業主｜2按1上',group:'now',tag:'付款',desc:'確認兩個月按金＋一個月上期，以及保留付款／收據紀錄。'},
+{id:'landlord_deposit',title:'業主\n2按1上',group:'now',tag:'付款',desc:'確認兩個月按金＋一個月上期，以及保留付款／收據紀錄。'},
 {id:'simmons_mattress',title:'蓆夢思床褥',group:'ritual',tag:'安床',desc:'確認 8/23 送貨／到位安排；安床時使用新床褥。'},
 {id:'ritual_arrive',title:'12:30–12:50｜到達新屋',group:'ritual',tag:'準備',desc:'先開門、開窗通風；正式象徵式入宅動作留待 13:00 後開始。'},
 {id:'ritual_items',title:'入門物品準備',group:'ritual',tag:'準備',desc:'米、食油、樽裝水、利是、保溫壺熱水。濾水機留在舊屋，8/28 才搬。'},
@@ -61,6 +61,7 @@ let orderState=loadOrderLocal();
 let firebaseCtx=null, unsub=null, remoteReady=false;
 let settings=loadSettings();
 let isDragging=false;
+let editingNoteId=null;
 
 const $=s=>document.querySelector(s);
 function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
@@ -121,7 +122,23 @@ function render(){
       const stamp=st.updatedBy?`最後更新：${esc(st.updatedBy)}${st.updatedAtMs?'・'+fmtTime(st.updatedAtMs):''}`:'';
       d.innerHTML=`<div class="row"><button class="dragHandle" type="button" aria-label="拖移 ${esc(it.title)}">☰</button><input class="check" type="checkbox" ${st.done?'checked':''}><div class="cardBody"><div class="title">${esc(it.title)}</div><div class="meta"><span class="badge ${badgeClass(it.tag)}">${esc(it.tag)}</span>${esc(it.desc)}</div><div class="stamp">${stamp}</div><textarea class="note" rows="1" placeholder="備註／申請編號／預約時間…">${esc(st.note||'')}</textarea></div></div>`;
       d.querySelector('.check').addEventListener('change',e=>updateItem(it.id,{done:e.target.checked}));
-      let timer; d.querySelector('.note').addEventListener('input',e=>{clearTimeout(timer);timer=setTimeout(()=>updateItem(it.id,{note:e.target.value}),500)});
+      const noteEl=d.querySelector('.note');
+      let timer;
+      noteEl.addEventListener('focus',()=>{editingNoteId=it.id;});
+      noteEl.addEventListener('input',e=>{
+        // iPhone 輸入期間只更新資料，不重新 render DOM，避免鍵盤／游標被打斷。
+        const value=e.target.value;
+        state[it.id]={...(state[it.id]||{}),note:value};
+        saveLocal();
+        clearTimeout(timer);
+        timer=setTimeout(()=>updateItem(it.id,{note:value},false),700);
+      });
+      noteEl.addEventListener('blur',e=>{
+        clearTimeout(timer);
+        const value=e.target.value;
+        editingNoteId=null;
+        updateItem(it.id,{note:value},true);
+      });
       enableDrag(d.querySelector('.dragHandle'),d,key);
       cardList.appendChild(d);
     });
@@ -135,9 +152,9 @@ function updateProgress(){
   $('#who').textContent=settings?.displayName?`使用者：${settings.displayName}`:'';
 }
 
-async function updateItem(id,patch){
+async function updateItem(id,patch,rerender=true){
   const now=Date.now(); const by=settings?.displayName||'本機使用者';
-  state[id]={...(state[id]||{}),...patch,updatedBy:by,updatedAtMs:now}; saveLocal(); render();
+  state[id]={...(state[id]||{}),...patch,updatedBy:by,updatedAtMs:now}; saveLocal(); if(rerender&&!editingNoteId)render();
   if(firebaseCtx&&remoteReady){
     try{
       const {docRef,updateDoc,serverTimestamp}=firebaseCtx;
@@ -275,7 +292,7 @@ async function connectFirebase(s){
         const data=snap.data();
         if(data.states){state={...state,...data.states};saveLocal();}
         if(data.order){orderState=normalizeOrder({...orderState,...data.order});saveOrderLocal();}
-        if(!isDragging)render();
+        if(!isDragging&&!editingNoteId)render();
         remoteReady=true; const fromCache=snap.metadata.fromCache; setStatus(fromCache?'wait':'ok',fromCache?'● 離線快取':'● 已同步');
         $('#lastSync').textContent='最後同步 '+new Date().toLocaleTimeString('zh-HK',{hour:'2-digit',minute:'2-digit'});
       }
