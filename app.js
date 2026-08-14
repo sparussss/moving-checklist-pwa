@@ -25,7 +25,7 @@ const items=[
 {id:'ritual_mattress',title:'13:30–14:00｜新床褥正式平放',group:'ritual',tag:'安床',desc:'拆走運輸包裝、床褥擺正並正式放上床架。只有新床褥亦可以，床單、枕頭、被可 8/28 後再補。'},
 {id:'ritual_finish',title:'14:00–15:00｜完成象徵式入宅',group:'ritual',tag:'完成',desc:'可在客廳坐一陣、飲水／茶；主要燈可開至離開。23 號當晚不用留宿。'},
 {id:'ritual_leave',title:'離開前｜安全檢查',group:'ritual',tag:'需要',desc:'確認水龍頭已關、門窗鎖好；燈可正常熄掉，毋須開足一晚。'},
-{id:'uncle_mover',title:'阿叔搬屋',group:'move',tag:'8/28',desc:'確認 8/28 搬屋時間、佐敦舊址樓梯搬運，以及疊茵庭升降機／管理處安排。'},
+{id:'uncle_mover',title:'搬屋公司',group:'move',tag:'8/28',desc:'確認 8/28 搬屋時間、佐敦舊址樓梯搬運，以及疊茵庭升降機／管理處安排。'},
 {id:'meter_power',title:'電錶讀數及相片',group:'move',tag:'需要',desc:'搬屋前後影低錶號及讀數。'},
 {id:'meter_gas',title:'煤氣錶讀數及相片',group:'move',tag:'需要',desc:'影低錶號及讀數。'},
 {id:'meter_water',title:'水錶讀數及相片',group:'move',tag:'需要',desc:'影低錶號及讀數。'},
@@ -120,24 +120,33 @@ function render(){
     orderedItems(key).forEach(it=>{
       const st=state[it.id]||{}; const d=document.createElement('div'); d.className='card '+(st.done?'done':''); d.dataset.id=it.id;
       const stamp=st.updatedBy?`最後更新：${esc(st.updatedBy)}${st.updatedAtMs?'・'+fmtTime(st.updatedAtMs):''}`:'';
-      d.innerHTML=`<div class="row"><button class="dragHandle" type="button" aria-label="拖移 ${esc(it.title)}">☰</button><input class="check" type="checkbox" ${st.done?'checked':''}><div class="cardBody"><div class="title">${esc(it.title)}</div><div class="meta"><span class="badge ${badgeClass(it.tag)}">${esc(it.tag)}</span>${esc(it.desc)}</div><div class="stamp">${stamp}</div><textarea class="note" rows="1" placeholder="備註／申請編號／預約時間…">${esc(st.note||'')}</textarea></div></div>`;
+      const isLandlord=it.id==='landlord_deposit';
+      const noteHtml=isLandlord
+        ? `<div class="splitNotes"><label class="noteField"><span>業主</span><textarea class="note" data-note-field="ownerNote" rows="1" placeholder="業主相關備註…">${esc(st.ownerNote ?? st.note ?? '')}</textarea></label><label class="noteField"><span>2按1上</span><textarea class="note" data-note-field="depositNote" rows="1" placeholder="付款／收據／日期…">${esc(st.depositNote||'')}</textarea></label></div>`
+        : `<textarea class="note" data-note-field="note" rows="1" placeholder="備註／申請編號／預約時間…">${esc(st.note||'')}</textarea>`;
+      d.innerHTML=`<div class="row"><button class="dragHandle" type="button" aria-label="拖移 ${esc(it.title)}">☰</button><input class="check" type="checkbox" ${st.done?'checked':''}><div class="cardBody"><div class="title">${esc(it.title)}</div><div class="meta"><span class="badge ${badgeClass(it.tag)}">${esc(it.tag)}</span>${esc(it.desc)}</div><div class="stamp">${stamp}</div>${noteHtml}</div></div>`;
       d.querySelector('.check').addEventListener('change',e=>updateItem(it.id,{done:e.target.checked}));
-      const noteEl=d.querySelector('.note');
-      let timer;
-      noteEl.addEventListener('focus',()=>{editingNoteId=it.id;});
-      noteEl.addEventListener('input',e=>{
-        // iPhone 輸入期間只更新資料，不重新 render DOM，避免鍵盤／游標被打斷。
-        const value=e.target.value;
-        state[it.id]={...(state[it.id]||{}),note:value};
-        saveLocal();
-        clearTimeout(timer);
-        timer=setTimeout(()=>updateItem(it.id,{note:value},false),700);
-      });
-      noteEl.addEventListener('blur',e=>{
-        clearTimeout(timer);
-        const value=e.target.value;
-        editingNoteId=null;
-        updateItem(it.id,{note:value},true);
+      d.querySelectorAll('.note').forEach(noteEl=>{
+        let timer;
+        const field=noteEl.dataset.noteField||'note';
+        const editKey=`${it.id}:${field}`;
+        noteEl.addEventListener('focus',()=>{editingNoteId=editKey;});
+        noteEl.addEventListener('input',e=>{
+          // iPhone 輸入期間只更新資料，不重新 render DOM，避免鍵盤／游標被打斷。
+          const value=e.target.value;
+          state[it.id]={...(state[it.id]||{}),[field]:value};
+          saveLocal();
+          clearTimeout(timer);
+          timer=setTimeout(()=>updateItem(it.id,{[field]:value},false),700);
+        });
+        noteEl.addEventListener('blur',e=>{
+          clearTimeout(timer);
+          const value=e.target.value;
+          updateItem(it.id,{[field]:value},false);
+          setTimeout(()=>{
+            if(!document.activeElement?.classList?.contains('note')) editingNoteId=null;
+          },80);
+        });
       });
       enableDrag(d.querySelector('.dragHandle'),d,key);
       cardList.appendChild(d);
