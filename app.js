@@ -10,6 +10,7 @@ const items=[
 {id:'mail',title:'香港郵政｜郵件轉遞',group:'now',tag:'建議',desc:'舊址郵件暫時轉寄新址。'},
 {id:'lg_tv',title:'LG 電視',group:'now',tag:'家電',desc:'確認購買、送貨及安裝安排；型號及日期可記錄在備註。'},
 {id:'osim_chair',title:'OSIM 小天后',group:'now',tag:'傢俬',desc:'確認送貨日期、擺位及電源位置。'},
+{id:'table_chairs',title:'枱凳',group:'now',tag:'傢俬',desc:'確認購買／送貨安排、尺寸及客飯廳最終擺位。'},
 {id:'whirlpool_washer',title:'Whirlpool 洗衣機',group:'now',tag:'家電',desc:'確認尺寸、送貨及安裝安排。'},
 {id:'cheung_yick',title:'祥益地產',group:'now',tag:'聯絡',desc:'交樓、鎖匙、文件或其他相關事項可記錄在備註。'},
 {id:'landlord_deposit',title:'業主｜2按1上',group:'now',tag:'付款',desc:'確認兩個月按金＋一個月上期，以及保留付款／收據紀錄。'},
@@ -32,7 +33,6 @@ const items=[
 {id:'keys',title:'點算鎖匙／信箱匙／住戶卡',group:'move',tag:'需要',desc:'記錄實際收到數量。'},
 {id:'appliances_main',title:'測試冷氣／熱水爐／煮食爐',group:'move',tag:'需要',desc:'確認業主提供設備運作正常。'},
 {id:'appliances_other',title:'測試業主提供的其他電器',group:'move',tag:'需要',desc:'如租約包含其他家電，逐件測試。'},
-{id:'move_filter',title:'搬濾水機',group:'move',tag:'8/28',desc:'濾水機留在舊屋使用至正式搬屋日，8/28 再搬去疊茵庭。'},
 {id:'bank',title:'銀行／信用卡地址',group:'after',tag:'需要',desc:'搬入後更新通訊地址。'},
 {id:'insurance_address',title:'保險地址',group:'after',tag:'視乎需要',desc:'有相關保單才處理。'},
 {id:'mpf',title:'強積金 MPF 地址',group:'after',tag:'視乎需要',desc:'按所用受託人更新資料。'},
@@ -64,19 +64,25 @@ let isDragging=false;
 
 const $=s=>document.querySelector(s);
 function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
-function groupIds(group){return items.filter(it=>it.group===group).map(it=>it.id);}
 function normalizeOrder(raw={}){
+  // orderState 同時代表「所屬分類」及「分類內排序」，因此可跨分類拖移。
+  const validIds=new Set(items.map(it=>it.id));
+  const seen=new Set();
   const out={};
   for(const group of Object.keys(groups)){
-    const valid=groupIds(group); const seen=new Set(); const arr=[];
-    for(const id of (raw[group]||[])){if(valid.includes(id)&&!seen.has(id)){arr.push(id);seen.add(id);}}
-    for(const id of valid){if(!seen.has(id))arr.push(id);}
-    out[group]=arr;
+    out[group]=[];
+    for(const id of (raw[group]||[])){
+      if(validIds.has(id)&&!seen.has(id)){out[group].push(id);seen.add(id);}
+    }
+  }
+  // 新增項目或未存在於舊排序資料的項目，回到預設分類。
+  for(const it of items){
+    if(!seen.has(it.id)){out[it.group].push(it.id);seen.add(it.id);}
   }
   return out;
 }
 function orderedItems(group){
-  const map=new Map(items.filter(it=>it.group===group).map(it=>[it.id,it]));
+  const map=new Map(items.map(it=>[it.id,it]));
   return (orderState[group]||[]).map(id=>map.get(id)).filter(Boolean);
 }
 function loadLocal(){
@@ -108,7 +114,7 @@ function render(){
     const sec=document.createElement('section');
     sec.dataset.group=key;
     const heading=document.createElement('div'); heading.className='sectionHead';
-    heading.innerHTML=`<h2>${esc(label)}</h2><span>長按 ☰ 拖移排序</span>`;
+    heading.innerHTML=`<h2>${esc(label)}</h2><span>長按 ☰ 可跨分類拖移</span>`;
     const cardList=document.createElement('div'); cardList.className='cardlist'; cardList.dataset.group=key;
     orderedItems(key).forEach(it=>{
       const st=state[it.id]||{}; const d=document.createElement('div'); d.className='card '+(st.done?'done':''); d.dataset.id=it.id;
@@ -141,13 +147,14 @@ async function updateItem(id,patch){
   }
 }
 
-async function syncOrder(group){
+async function syncOrder(){
   saveOrderLocal();
   if(firebaseCtx&&remoteReady){
     try{
       const by=settings?.displayName||'本機使用者';
       const {docRef,updateDoc,serverTimestamp}=firebaseCtx;
-      await updateDoc(docRef,{[`order.${group}`]:orderState[group],updatedAt:serverTimestamp(),updatedBy:by});
+      // 跨分類拖移會同時改變來源及目的分類，因此一次同步完整 order。
+      await updateDoc(docRef,{order:orderState,updatedAt:serverTimestamp(),updatedBy:by});
       setStatus('ok','● 已同步');
     }catch(e){setStatus('err','● 排序等待同步'); console.warn(e);}
   }
@@ -157,31 +164,76 @@ function enableDrag(handle,card,group){
   handle.addEventListener('pointerdown',e=>{
     if(e.pointerType==='mouse'&&e.button!==0)return;
     e.preventDefault();
-    const container=card.parentElement; const rect=card.getBoundingClientRect();
-    const placeholder=document.createElement('div'); placeholder.className='dragPlaceholder'; placeholder.style.height=rect.height+'px';
-    const offsetY=e.clientY-rect.top; const pointerId=e.pointerId;
-    card.after(placeholder); isDragging=true; document.body.classList.add('reordering');
+    const sourceContainer=card.parentElement;
+    const sourceGroup=sourceContainer.dataset.group;
+    const rect=card.getBoundingClientRect();
+    const placeholder=document.createElement('div');
+    placeholder.className='dragPlaceholder';
+    placeholder.style.height=rect.height+'px';
+    const offsetY=e.clientY-rect.top;
+    const pointerId=e.pointerId;
+    card.after(placeholder);
+    isDragging=true;
+    document.body.classList.add('reordering');
     card.classList.add('dragging');
     Object.assign(card.style,{position:'fixed',left:rect.left+'px',top:rect.top+'px',width:rect.width+'px',zIndex:'9999',margin:'0'});
     try{handle.setPointerCapture(pointerId);}catch{}
 
+    const chooseContainer=(x,y)=>{
+      const el=document.elementFromPoint(x,y);
+      let target=el?.closest?.('.cardlist');
+      if(!target){
+        const sec=el?.closest?.('section');
+        target=sec?.querySelector?.('.cardlist')||null;
+      }
+      return target;
+    };
+
     const move=ev=>{
       if(ev.pointerId!==pointerId)return;
-      ev.preventDefault(); const y=ev.clientY;
+      ev.preventDefault();
+      const x=ev.clientX, y=ev.clientY;
       card.style.top=(y-offsetY)+'px';
-      const candidates=[...container.querySelectorAll('.card:not(.dragging)')]; let placed=false;
-      for(const c of candidates){const r=c.getBoundingClientRect(); if(y<r.top+r.height/2){container.insertBefore(placeholder,c);placed=true;break;}}
-      if(!placed)container.appendChild(placeholder);
-      if(y<90)window.scrollBy(0,-12); else if(y>window.innerHeight-90)window.scrollBy(0,12);
+
+      // 在「全部」畫面，拖到另一個 section 即可跨分類。
+      const targetContainer=chooseContainer(x,y) || placeholder.parentElement;
+      const candidates=[...targetContainer.querySelectorAll('.card:not(.dragging)')];
+      let placed=false;
+      for(const c of candidates){
+        const r=c.getBoundingClientRect();
+        if(y<r.top+r.height/2){targetContainer.insertBefore(placeholder,c);placed=true;break;}
+      }
+      if(!placed)targetContainer.appendChild(placeholder);
+
+      if(y<90)window.scrollBy(0,-12);
+      else if(y>window.innerHeight-90)window.scrollBy(0,12);
     };
+
     const end=async ev=>{
       if(ev.pointerId!==pointerId)return;
-      handle.removeEventListener('pointermove',move); handle.removeEventListener('pointerup',end); handle.removeEventListener('pointercancel',end);
+      handle.removeEventListener('pointermove',move);
+      handle.removeEventListener('pointerup',end);
+      handle.removeEventListener('pointercancel',end);
       try{handle.releasePointerCapture(pointerId);}catch{}
-      placeholder.replaceWith(card); card.classList.remove('dragging'); card.removeAttribute('style'); document.body.classList.remove('reordering'); isDragging=false;
-      orderState[group]=[...container.querySelectorAll('.card')].map(el=>el.dataset.id); await syncOrder(group); render();
+
+      const targetContainer=placeholder.parentElement;
+      const targetGroup=targetContainer.dataset.group;
+      placeholder.replaceWith(card);
+      card.classList.remove('dragging');
+      card.removeAttribute('style');
+      document.body.classList.remove('reordering');
+      isDragging=false;
+
+      orderState[sourceGroup]=[...sourceContainer.querySelectorAll('.card')].map(el=>el.dataset.id);
+      orderState[targetGroup]=[...targetContainer.querySelectorAll('.card')].map(el=>el.dataset.id);
+      orderState=normalizeOrder(orderState);
+      await syncOrder();
+      render();
     };
-    handle.addEventListener('pointermove',move); handle.addEventListener('pointerup',end); handle.addEventListener('pointercancel',end);
+
+    handle.addEventListener('pointermove',move);
+    handle.addEventListener('pointerup',end);
+    handle.addEventListener('pointercancel',end);
   });
 }
 
