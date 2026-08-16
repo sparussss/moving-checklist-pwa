@@ -153,7 +153,6 @@ function render(){
         let timer;
         const field=noteEl.dataset.noteField||'note';
         const editKey=`${it.id}:${field}`;
-        autoGrow(noteEl);
         noteEl.addEventListener('focus',()=>{editingNoteId=editKey;autoGrow(noteEl);});
         noteEl.addEventListener('input',e=>{
           // iPhone 輸入期間只更新資料，不重新 render DOM，避免鍵盤／游標被打斷。
@@ -177,6 +176,12 @@ function render(){
       cardList.appendChild(d);
     });
     sec.append(heading,cardList); box.appendChild(sec);
+  });
+  // iOS Safari: textareas must already be in the document before scrollHeight is reliable.
+  // Run after layout so saved 2+ line notes are fully visible immediately, without tapping first.
+  requestAnimationFrame(()=>{
+    document.querySelectorAll('#list .note').forEach(autoGrow);
+    requestAnimationFrame(()=>document.querySelectorAll('#list .note').forEach(autoGrow));
   });
   updateProgress();
 }
