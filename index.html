@@ -16,7 +16,7 @@
   <div class="headrow">
     <div>
       <h1>叠茵庭搬屋 Checklist</h1>
-      <div class="sub">租住・6座 ｜ 8/23 安床＋象徵式入宅 ｜ 8/28 搬屋</div>
+      <div class="sub">租住・6座 ｜ 搬入：2026年8月22日</div>
     </div>
     <button id="settingsBtn" class="iconbtn" aria-label="同步設定">⚙︎</button>
   </div>
@@ -32,29 +32,23 @@
     <div class="bar"><div class="fill" id="fill"></div></div>
   </div>
 
-  <div class="ritualNote">
-    <strong>8/23 安床重點</strong>
-    <div>13:00–15:00 完成象徵式入宅＋安床。只需新床褥，未有床單／枕頭／被亦可以；當晚不用留宿。熱水用保溫壺由舊屋帶過去即可。</div>
-  </div>
-
   <div class="tabs">
     <button class="tab active" data-filter="all">全部</button>
     <button class="tab" data-filter="now">現在處理</button>
-    <button class="tab" data-filter="ritual">8/23 安床入宅</button>
-    <button class="tab" data-filter="move">8/28 搬屋</button>
+    <button class="tab" data-filter="day">搬屋當日</button>
     <button class="tab" data-filter="after">搬入後</button>
     <button class="tab" data-filter="optional">視乎需要</button>
   </div>
 
   <div id="list"></div>
   <button class="reset" id="reset">清除本機完成紀錄</button>
-  <p class="privacy">長按每項左邊的 ☰ 可拖移排序；在「全部」畫面可跨分類拖移。如已啟用家人同步，分類位置及排序亦會同步。請勿在備註欄輸入身份證號碼、密碼、銀行資料等敏感資料。</p>
+  <p class="privacy">測試版：請勿在備註欄輸入身份證號碼、密碼、銀行資料等敏感資料。</p>
 </main>
 
 <dialog id="settingsDialog">
   <form method="dialog" class="dialogbox" id="settingsForm">
     <div class="dialogHead">
-      <div><h2>家人即時同步</h2><p>Firebase Firestore 設定</p></div>
+      <div><h2>家人即時同步</h2><p>Firebase Firestore 同步設定</p></div>
       <button class="closebtn" value="cancel" aria-label="關閉">×</button>
     </div>
 
