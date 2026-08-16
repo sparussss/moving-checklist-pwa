@@ -66,6 +66,30 @@ let editingNoteId=null;
 
 const $=s=>document.querySelector(s);
 function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
+const legacyMultiNoteIds=new Set(['landlord_deposit','simmons_mattress','osim_chair','whirlpool_washer','lg_tv','table_chairs','microwave']);
+function unifiedNoteValue(it,st={}){
+  if(st.noteUnified!==undefined) return st.noteUnified||'';
+  if(it.id==='landlord_deposit'){
+    const first=(st.ownerNote ?? st.note ?? '')||'';
+    const second=(st.depositNote||'');
+    if(!first) return second;
+    if(second && !String(first).includes(String(second))) return `${first}\n${second}`;
+    return first;
+  }
+  if(legacyMultiNoteIds.has(it.id)){
+    const first=(st.note||'');
+    const second=(st.note2||'');
+    if(!first) return second;
+    if(second && !String(first).includes(String(second))) return `${first}\n${second}`;
+    return first;
+  }
+  return st.note||'';
+}
+function autoGrow(el){
+  if(!el)return;
+  el.style.height='auto';
+  el.style.height=Math.max(40,el.scrollHeight)+'px';
+}
 function normalizeOrder(raw={}){
   // orderState 同時代表「所屬分類」及「分類內排序」，因此可跨分類拖移。
   const validIds=new Set(items.map(it=>it.id));
@@ -121,23 +145,20 @@ function render(){
     orderedItems(key).forEach(it=>{
       const st=state[it.id]||{}; const d=document.createElement('div'); d.className='card '+(st.done?'done':''); d.dataset.id=it.id;
       const stamp=st.updatedBy?`最後更新：${esc(st.updatedBy)}${st.updatedAtMs?'・'+fmtTime(st.updatedAtMs):''}`:'';
-      const isLandlord=it.id==='landlord_deposit';
-      const hasTwoNotes=['simmons_mattress','osim_chair','whirlpool_washer','lg_tv','table_chairs','microwave'].includes(it.id);
-      const noteHtml=isLandlord
-        ? `<div class="splitNotes"><label class="noteField"><textarea class="note" data-note-field="ownerNote" rows="1" placeholder="業主，例如：1上(8/10 $13000)✅">${esc(st.ownerNote ?? st.note ?? '')}</textarea></label><label class="noteField"><textarea class="note" data-note-field="depositNote" rows="1" placeholder="2按1上，例如：2按(8/21 $26000)">${esc(st.depositNote||'')}</textarea></label></div>`
-        : hasTwoNotes
-          ? `<div class="splitNotes"><label class="noteField"><textarea class="note" data-note-field="note" rows="1" placeholder="備註 1…">${esc(st.note||'')}</textarea></label><label class="noteField"><textarea class="note" data-note-field="note2" rows="1" placeholder="備註 2…">${esc(st.note2||'')}</textarea></label></div>`
-          : `<textarea class="note" data-note-field="note" rows="1" placeholder="備註／申請編號／預約時間…">${esc(st.note||'')}</textarea>`;
+      const usesUnifiedField=legacyMultiNoteIds.has(it.id);
+      const noteHtml=`<textarea class="note" data-note-field="${usesUnifiedField?'noteUnified':'note'}" rows="1" placeholder="備註／申請編號／預約時間…">${esc(unifiedNoteValue(it,st))}</textarea>`;
       d.innerHTML=`<div class="row"><button class="dragHandle" type="button" aria-label="拖移 ${esc(it.title)}">☰</button><input class="check" type="checkbox" ${st.done?'checked':''}><div class="cardBody"><div class="title">${esc(it.title)}</div><div class="meta"><span class="badge ${badgeClass(it.tag)}">${esc(it.tag)}</span>${esc(it.desc)}</div><div class="stamp">${stamp}</div>${noteHtml}</div></div>`;
       d.querySelector('.check').addEventListener('change',e=>updateItem(it.id,{done:e.target.checked}));
       d.querySelectorAll('.note').forEach(noteEl=>{
         let timer;
         const field=noteEl.dataset.noteField||'note';
         const editKey=`${it.id}:${field}`;
-        noteEl.addEventListener('focus',()=>{editingNoteId=editKey;});
+        autoGrow(noteEl);
+        noteEl.addEventListener('focus',()=>{editingNoteId=editKey;autoGrow(noteEl);});
         noteEl.addEventListener('input',e=>{
           // iPhone 輸入期間只更新資料，不重新 render DOM，避免鍵盤／游標被打斷。
           const value=e.target.value;
+          autoGrow(e.target);
           state[it.id]={...(state[it.id]||{}),[field]:value};
           saveLocal();
           clearTimeout(timer);
