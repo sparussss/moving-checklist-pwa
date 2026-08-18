@@ -21,7 +21,7 @@ const items=[
 {id:'landlord_deposit',title:'業主\n2按1上',group:'now',tag:'付款',desc:'確認兩個月按金＋一個月上期，以及保留付款／收據紀錄。'},
 {id:'simmons_mattress',title:'床褥',group:'ritual',tag:'安床',desc:'確認 8/23 送貨／到位安排；安床時使用新床褥。'},
 {id:'ritual_arrive',title:'12:30–12:50｜到達新屋',group:'ritual',tag:'準備',desc:'先開門、開窗通風；正式象徵式入宅動作留待 13:00 後開始。'},
-{id:'ritual_items',title:'入門物品準備',group:'ritual',tag:'準備',desc:'米、食油、樽裝水、利是、保溫壺熱水。濾水機留在舊屋，8/28 才搬。'},
+{id:'ritual_items',title:'入門物品準備',group:'ritual',tag:'準備',desc:'米、食油、樽裝水、利是、保溫壺熱水。'},
 {id:'ritual_rice',title:'13:00｜第一樣帶米入門',group:'ritual',tag:'入宅',desc:'用米作第一件正式帶入屋的象徵物品。'},
 {id:'ritual_lights',title:'13:00｜開主要燈',group:'ritual',tag:'入宅',desc:'開客廳、主人房、廚房、廁所主要燈。'},
 {id:'ritual_water',title:'13:00｜開水',group:'ritual',tag:'入宅',desc:'廚房及廁所水龍頭各開約 10–30 秒；可沖一次廁所，之後關好。'},
@@ -63,6 +63,7 @@ const groups={
 let filter='all';
 let state=loadLocal();
 let orderState=loadOrderLocal();
+let collapsedGroups=loadCollapsedLocal();
 let firebaseCtx=null, unsub=null, remoteReady=false;
 let settings=loadSettings();
 let isDragging=false;
@@ -131,6 +132,23 @@ function loadOrderLocal(){
   catch{return normalizeOrder({});}
 }
 function saveOrderLocal(){localStorage.setItem('moveChecklistOrderV12',JSON.stringify(orderState));}
+function loadCollapsedLocal(){
+  try{
+    const raw=JSON.parse(localStorage.getItem('moveChecklistCollapsedV116')||'{}');
+    const out={};
+    for(const key of Object.keys(groups)) out[key]=!!raw[key];
+    return out;
+  }catch{
+    return Object.fromEntries(Object.keys(groups).map(key=>[key,false]));
+  }
+}
+function saveCollapsedLocal(){localStorage.setItem('moveChecklistCollapsedV116',JSON.stringify(collapsedGroups));}
+function toggleGroupCollapsed(group){
+  if(!(group in groups))return;
+  collapsedGroups[group]=!collapsedGroups[group];
+  saveCollapsedLocal();
+  render();
+}
 function loadSettings(){try{return JSON.parse(localStorage.getItem('firebaseSettingsV11')||'null');}catch{return null;}}
 function saveSettingsObj(v){settings=v;localStorage.setItem('firebaseSettingsV11',JSON.stringify(v));}
 function fmtTime(ms){if(!ms)return'';try{return new Intl.DateTimeFormat('zh-HK',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(ms));}catch{return'';}}
@@ -143,8 +161,11 @@ function render(){
     if(filter!=='all'&&filter!==key)return;
     const sec=document.createElement('section');
     sec.dataset.group=key;
+    const collapsed=!!collapsedGroups[key];
+    if(collapsed)sec.classList.add('groupCollapsed');
     const heading=document.createElement('div'); heading.className='sectionHead';
-    heading.innerHTML=`<h2>${esc(label)}</h2><span>長按 ☰ 可跨分類拖移</span>`;
+    heading.innerHTML=`<h2>${esc(label)}</h2><div class="sectionHeadActions"><span>長按 ☰ 可跨分類拖移</span><button type="button" class="collapseBtn" aria-expanded="${collapsed?'false':'true'}">${collapsed?'展開 ▾':'收起 ▴'}</button></div>`;
+    heading.querySelector('.collapseBtn').addEventListener('click',()=>toggleGroupCollapsed(key));
     const cardList=document.createElement('div'); cardList.className='cardlist'; cardList.dataset.group=key;
     orderedItems(key).forEach(it=>{
       const st=state[it.id]||{}; const d=document.createElement('div'); d.className='card '+(st.done?'done':''); d.dataset.id=it.id;
@@ -325,6 +346,17 @@ function buildPngExportRoot(){
   list.removeAttribute('id');
   list.querySelectorAll('.dragHandle').forEach(el=>el.remove());
   list.querySelectorAll('.sectionHead span').forEach(el=>el.remove());
+  list.querySelectorAll('.collapseBtn').forEach(btn=>{
+    const section=btn.closest('section');
+    if(section?.classList.contains('groupCollapsed')){
+      const label=document.createElement('span');
+      label.className='pngCollapsedLabel';
+      label.textContent='已收起';
+      btn.replaceWith(label);
+    }else{
+      btn.remove();
+    }
+  });
 
   const originalChecks=[...originalList.querySelectorAll('.check')];
   [...list.querySelectorAll('.check')].forEach((el,i)=>{
