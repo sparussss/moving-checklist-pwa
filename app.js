@@ -14,12 +14,12 @@ const items=[
 {id:'cat_food',title:'貓糧',group:'now',tag:'貓用品',desc:'確認搬屋前後所需存量及新屋存放位置。'},
 {id:'dining_chairs',title:'餐椅',group:'now',tag:'傢俬',desc:'確認數量、尺寸、購買／送貨安排及餐桌配搭。'},
 {id:'cat_litter',title:'貓砂',group:'now',tag:'貓用品',desc:'確認搬屋前後所需存量及新屋貓砂位置。'},
-{id:'osim_chair',title:'OSIM 小天后',group:'now',tag:'傢俬',desc:'確認送貨日期、擺位及電源位置。'},
+{id:'osim_chair',title:'梳化',group:'now',tag:'傢俬',desc:'確認送貨日期、擺位及電源位置。'},
 {id:'table_chairs',title:'枱凳',group:'now',tag:'傢俬',desc:'確認購買／送貨安排、尺寸及客飯廳最終擺位。'},
 {id:'whirlpool_washer',title:'洗衣機',group:'now',tag:'家電',desc:'確認尺寸、送貨及安裝安排。'},
 {id:'cheung_yick',title:'祥益地產',group:'now',tag:'聯絡',desc:'交樓、鎖匙、文件或其他相關事項可記錄在備註。'},
 {id:'landlord_deposit',title:'業主\n2按1上',group:'now',tag:'付款',desc:'確認兩個月按金＋一個月上期，以及保留付款／收據紀錄。'},
-{id:'simmons_mattress',title:'蓆夢思床褥',group:'ritual',tag:'安床',desc:'確認 8/23 送貨／到位安排；安床時使用新床褥。'},
+{id:'simmons_mattress',title:'床褥',group:'ritual',tag:'安床',desc:'確認 8/23 送貨／到位安排；安床時使用新床褥。'},
 {id:'ritual_arrive',title:'12:30–12:50｜到達新屋',group:'ritual',tag:'準備',desc:'先開門、開窗通風；正式象徵式入宅動作留待 13:00 後開始。'},
 {id:'ritual_items',title:'入門物品準備',group:'ritual',tag:'準備',desc:'米、食油、樽裝水、利是、保溫壺熱水。濾水機留在舊屋，8/28 才搬。'},
 {id:'ritual_rice',title:'13:00｜第一樣帶米入門',group:'ritual',tag:'入宅',desc:'用米作第一件正式帶入屋的象徵物品。'},
@@ -297,6 +297,116 @@ function enableDrag(handle,card,group){
   });
 }
 
+
+const filterLabels={all:'全部',now:'現在處理',ritual:'8/23 安床入宅',move:'8/28 搬屋',after:'搬入後',optional:'視乎需要'};
+
+function buildPngExportRoot(){
+  const root=document.createElement('div');
+  root.className='pngExportRoot';
+
+  const header=document.createElement('div');
+  header.className='pngHeader';
+  header.appendChild(document.querySelector('header .headcopy').cloneNode(true));
+
+  const body=document.createElement('div');
+  body.className='pngBody';
+  const progress=document.querySelector('.progress').cloneNode(true);
+  progress.querySelector('#exportPngBtn')?.remove();
+  body.appendChild(progress);
+  body.appendChild(document.querySelector('.ritualNote').cloneNode(true));
+
+  const filterLabel=document.createElement('div');
+  filterLabel.className='pngFilterLabel';
+  filterLabel.textContent=`顯示：${filterLabels[filter]||'全部'}`;
+  body.appendChild(filterLabel);
+
+  const originalList=document.querySelector('#list');
+  const list=originalList.cloneNode(true);
+  list.removeAttribute('id');
+  list.querySelectorAll('.dragHandle').forEach(el=>el.remove());
+  list.querySelectorAll('.sectionHead span').forEach(el=>el.remove());
+
+  const originalChecks=[...originalList.querySelectorAll('.check')];
+  [...list.querySelectorAll('.check')].forEach((el,i)=>{
+    const mark=document.createElement('div');
+    const checked=!!originalChecks[i]?.checked;
+    mark.className='pngCheck'+(checked?' checked':'');
+    mark.textContent=checked?'✓':'';
+    el.replaceWith(mark);
+  });
+
+  const originalNotes=[...originalList.querySelectorAll('.note')];
+  [...list.querySelectorAll('.note')].forEach((el,i)=>{
+    const value=(originalNotes[i]?.value ?? el.value ?? '').trimEnd();
+    if(!value.trim()){el.remove();return;}
+    const note=document.createElement('div');
+    note.className='pngNote';
+    note.textContent=value;
+    el.replaceWith(note);
+  });
+  body.appendChild(list);
+
+  const footer=document.createElement('div');
+  footer.className='pngFooter';
+  footer.textContent='叠茵庭搬屋 Checklist';
+  body.appendChild(footer);
+
+  root.append(header,body);
+  document.body.appendChild(root);
+  return root;
+}
+
+function pngFilename(){
+  const d=new Date();
+  const z=n=>String(n).padStart(2,'0');
+  return `叠茵庭搬屋-Checklist-${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}.png`;
+}
+
+async function exportPng(){
+  const btn=$('#exportPngBtn');
+  if(!btn)return;
+  const oldText=btn.textContent;
+  btn.disabled=true;
+  btn.textContent='製作中…';
+  let root=null;
+  try{
+    if(typeof window.html2canvas!=='function') throw new Error('PNG 工具未能載入，請確認網絡連線後再試。');
+    // 確保目前輸入中的文字已寫入 DOM／本機狀態後才輸出。
+    document.activeElement?.blur?.();
+    await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+    root=buildPngExportRoot();
+    await new Promise(r=>requestAnimationFrame(r));
+    const canvas=await window.html2canvas(root,{
+      backgroundColor:'#f5f5f7',
+      scale:1.25,
+      useCORS:true,
+      logging:false,
+      width:720,
+      windowWidth:720,
+      scrollX:0,
+      scrollY:0
+    });
+    const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('未能建立 PNG。')),'image/png'));
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=pngFilename();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),30000);
+    btn.textContent='已輸出 ✓';
+    setTimeout(()=>{btn.textContent=oldText;},1400);
+  }catch(e){
+    console.error(e);
+    alert(e.message||'輸出 PNG 失敗，請再試一次。');
+    btn.textContent=oldText;
+  }finally{
+    root?.remove();
+    btn.disabled=false;
+  }
+}
+
 function setStatus(type,text){const el=$('#syncBadge');el.className='sync '+type;el.textContent=text;}
 function parseConfig(text){
   const keys=['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId','measurementId']; const out={};
@@ -358,6 +468,7 @@ $('#saveSettings').onclick=async()=>{
   }catch(e){$('#settingsMsg').className='msg error';$('#settingsMsg').textContent=e.message||String(e);}
 };
 $('#disconnectBtn').onclick=()=>{if(unsub){unsub();unsub=null;}firebaseCtx=null;remoteReady=false;localStorage.removeItem('firebaseSettingsV11');settings=null;setStatus('local','● 本機模式');$('#lastSync').textContent='';$('#settingsDialog').close();render();};
+$('#exportPngBtn').onclick=exportPng;
 $('#reset').onclick=()=>{if(confirm('只清除這部手機的本機完成紀錄及備註？\n\n如已啟用家人同步，雲端資料不會被刪除，稍後會再次同步回來。\n\n拖移排序不會被清除。')){state={};saveLocal();render();}};
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');filter=b.dataset.filter;render();});
 window.addEventListener('online',()=>{if(settings)connectFirebase(settings)}); window.addEventListener('offline',()=>setStatus('wait','● 離線使用'));
